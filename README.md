@@ -376,6 +376,13 @@ python tests/benchmark_lap1015_cuda_breakdown.py
 python tests/benchmark_batched_batch_size_scaling.py
 ```
 
+Plot outputs are written to `benchmark_results/`:
+
+- Runtime vs matrix size (single solve): `single_runtime_vs_size.png` (linear + log-log)
+- Runtime vs matrix size (batched solve): `batch_runtime_vs_size_bs{BATCH_SIZE}.png`
+- Runtime vs batch size at fixed problem size: `batch_runtime_vs_batch_size_n{PROBLEM_SIZE}.png` (linear + log-log)
+- CUDA transfer/solve breakdown vs matrix size: `lap1015_cuda_timing_breakdown.png` (linear + log-log)
+
 ## License
 
 MIT
