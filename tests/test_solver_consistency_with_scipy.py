@@ -10,7 +10,7 @@ from get_cost_matrices import (
 )
 from scipy.optimize import linear_sum_assignment
 
-from py_lap_solver.solvers import Solvers
+from py_lap_solver.solvers import Lap1015Solver, Solvers
 
 
 def get_all_solver_instances():
@@ -22,6 +22,19 @@ def get_all_solver_instances():
         List of (name, solver_instance) tuples for all available solvers.
     """
     return list(Solvers.get_available_solvers().items())
+
+
+def get_cuda_solver_instances():
+    """Get CUDA solver instances from the registry."""
+    return [
+        (name, solver)
+        for name, solver in Solvers.get_available_solvers().items()
+        if getattr(solver, "use_cuda", False)
+    ]
+
+
+CUDA_SOLVER_INSTANCES = get_cuda_solver_instances()
+CUDA_AVAILABLE = len(CUDA_SOLVER_INSTANCES) > 0
 
 
 def scipy_reference(cost_matrix):
@@ -274,3 +287,49 @@ class TestSolverConsistency:
 
         # Check shapes match original matrix
         assert row_to_col.shape == (problem["full_size"],)
+
+
+def test_cuda_solver_registry_entry_matches_availability():
+    """Ensure CUDA solver is exposed in registry when CUDA backend is available."""
+    available_solvers = Solvers.get_available_solvers()
+
+    if Lap1015Solver.has_cuda():
+        assert Solvers.Lap1015CUDA is not None
+        assert "Lap1015CUDA" in available_solvers
+        assert getattr(available_solvers["Lap1015CUDA"], "use_cuda", False)
+    else:
+        assert Solvers.Lap1015CUDA is None
+        assert "Lap1015CUDA" not in available_solvers
+
+
+@pytest.mark.skipif(
+    not CUDA_AVAILABLE,
+    reason="LAP1015 CUDA backend unavailable (Lap1015Solver.has_cuda() is False)",
+)
+@pytest.mark.parametrize("solver_name,solver_instance", CUDA_SOLVER_INSTANCES)
+class TestCudaSolverConsistency:
+    """Extra CUDA-focused checks on top of generic solver consistency tests."""
+
+    def test_cuda_full_square_matrix(self, solver_name, solver_instance):
+        matrix = get_full_square_matrix(64)
+        ref = scipy_reference(matrix)
+
+        row_to_col = solver_instance.solve_single(matrix)
+
+        ref_cost = compute_assignment_cost(matrix, ref)
+        cost = compute_assignment_cost(matrix, row_to_col)
+        assert np.isclose(
+            cost, ref_cost, atol=1e-6
+        ), f"{solver_name}: Cost mismatch: {cost} vs {ref_cost}"
+
+    def test_cuda_rectangular_matrix(self, solver_name, solver_instance):
+        matrix = get_full_rect_matrix(64, 96)
+        ref = scipy_reference(matrix)
+
+        row_to_col = solver_instance.solve_single(matrix)
+
+        ref_cost = compute_assignment_cost(matrix, ref)
+        cost = compute_assignment_cost(matrix, row_to_col)
+        assert np.isclose(
+            cost, ref_cost, atol=1e-6
+        ), f"{solver_name}: Cost mismatch: {cost} vs {ref_cost}"

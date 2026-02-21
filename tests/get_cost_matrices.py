@@ -2,6 +2,8 @@
 
 import numpy as np
 
+FLOAT_DTYPE = np.float32
+
 
 def get_full_square_matrix(size, batch_size=None, seed=42):
     """Get a full square cost matrix with all entries valid.
@@ -24,9 +26,9 @@ def get_full_square_matrix(size, batch_size=None, seed=42):
     rng = np.random.RandomState(seed)
 
     if batch_size is None:
-        return rng.rand(size, size)
+        return rng.rand(size, size).astype(FLOAT_DTYPE, copy=False)
     else:
-        return rng.rand(batch_size, size, size)
+        return rng.rand(batch_size, size, size).astype(FLOAT_DTYPE, copy=False)
 
 
 def get_masked_square_matrix(size, batch_size=None, seed=42):
@@ -58,14 +60,14 @@ def get_masked_square_matrix(size, batch_size=None, seed=42):
     # Randomly choose num_valid to be 60-80% of size
     if batch_size is None:
         num_valid = int(size * (0.6 + 0.2 * rng.rand()))
-        cost_matrix = rng.rand(size, size)
+        cost_matrix = rng.rand(size, size).astype(FLOAT_DTYPE, copy=False)
         # Make the padded region have large costs
         cost_matrix[num_valid:, :] = 1000.0
         cost_matrix[:, num_valid:] = 1000.0
         return cost_matrix, num_valid
     else:
         num_valid = np.array([int(size * (0.6 + 0.2 * rng.rand())) for _ in range(batch_size)])
-        cost_matrices = rng.rand(batch_size, size, size)
+        cost_matrices = rng.rand(batch_size, size, size).astype(FLOAT_DTYPE, copy=False)
         # Pad each matrix individually
         for i in range(batch_size):
             nv = num_valid[i]
@@ -97,9 +99,9 @@ def get_full_rect_matrix(n_rows, n_cols, batch_size=None, seed=42):
     rng = np.random.RandomState(seed)
 
     if batch_size is None:
-        return rng.rand(n_rows, n_cols)
+        return rng.rand(n_rows, n_cols).astype(FLOAT_DTYPE, copy=False)
     else:
-        return rng.rand(batch_size, n_rows, n_cols)
+        return rng.rand(batch_size, n_rows, n_cols).astype(FLOAT_DTYPE, copy=False)
 
 
 def get_masked_rect_matrix(n_rows, n_cols, batch_size=None, seed=42):
@@ -134,13 +136,15 @@ def get_masked_rect_matrix(n_rows, n_cols, batch_size=None, seed=42):
     max_dim = max(n_rows, n_cols)
 
     if batch_size is None:
-        cost_matrix = np.full((max_dim, max_dim), 1000.0)
-        cost_matrix[:n_rows, :n_cols] = rng.rand(n_rows, n_cols)
+        cost_matrix = np.full((max_dim, max_dim), 1000.0, dtype=FLOAT_DTYPE)
+        cost_matrix[:n_rows, :n_cols] = rng.rand(n_rows, n_cols).astype(FLOAT_DTYPE, copy=False)
         return cost_matrix, n_rows, n_cols
     else:
-        cost_matrices = np.full((batch_size, max_dim, max_dim), 1000.0)
+        cost_matrices = np.full((batch_size, max_dim, max_dim), 1000.0, dtype=FLOAT_DTYPE)
         for i in range(batch_size):
-            cost_matrices[i, :n_rows, :n_cols] = rng.rand(n_rows, n_cols)
+            cost_matrices[i, :n_rows, :n_cols] = rng.rand(n_rows, n_cols).astype(
+                FLOAT_DTYPE, copy=False
+            )
         return cost_matrices, n_rows, n_cols
 
 
@@ -174,11 +178,15 @@ def get_padded_square_to_rect_matrix(full_size, num_valid_rows, batch_size=None,
     rng = np.random.RandomState(seed)
 
     if batch_size is None:
-        cost_matrix = np.full((full_size, full_size), 1000.0)
-        cost_matrix[:num_valid_rows, :] = rng.rand(num_valid_rows, full_size)
+        cost_matrix = np.full((full_size, full_size), 1000.0, dtype=FLOAT_DTYPE)
+        cost_matrix[:num_valid_rows, :] = rng.rand(num_valid_rows, full_size).astype(
+            FLOAT_DTYPE, copy=False
+        )
         return cost_matrix, num_valid_rows
     else:
-        cost_matrices = np.full((batch_size, full_size, full_size), 1000.0)
+        cost_matrices = np.full((batch_size, full_size, full_size), 1000.0, dtype=FLOAT_DTYPE)
         for i in range(batch_size):
-            cost_matrices[i, :num_valid_rows, :] = rng.rand(num_valid_rows, full_size)
+            cost_matrices[i, :num_valid_rows, :] = rng.rand(num_valid_rows, full_size).astype(
+                FLOAT_DTYPE, copy=False
+            )
         return cost_matrices, num_valid_rows
