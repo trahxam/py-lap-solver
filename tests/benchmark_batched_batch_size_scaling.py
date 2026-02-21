@@ -69,7 +69,7 @@ def benchmark_batch_size_scaling(
         print(f"\nBatch size: {batch_size}")
         for name, solver in solvers.items():
             runtime_ms = _time_call(
-                lambda: solver.batch_solve(matrices),
+                lambda s=solver, mats=matrices: s.batch_solve(mats),
                 warmup=warmup,
                 repeats=repeats,
             )
@@ -155,7 +155,9 @@ def parse_args() -> argparse.Namespace:
         help="Optional explicit batch sizes. If omitted: 1,2,4,... up to --max-batch-size.",
     )
     parser.add_argument("--warmup", type=int, default=1, help="Warmup runs per point.")
-    parser.add_argument("--repeats", type=int, default=3, help="Timed repeats per point (median used).")
+    parser.add_argument(
+        "--repeats", type=int, default=3, help="Timed repeats per point (median used)."
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -168,7 +170,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     """Run batch-size scaling benchmark workflow."""
     args = parse_args()
-    batch_sizes = args.batch_sizes if args.batch_sizes is not None else _default_batch_sizes(args.max_batch_size)
+    batch_sizes = (
+        args.batch_sizes
+        if args.batch_sizes is not None
+        else _default_batch_sizes(args.max_batch_size)
+    )
 
     results = benchmark_batch_size_scaling(
         problem_size=args.problem_size,

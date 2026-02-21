@@ -68,7 +68,9 @@ def benchmark_cuda_breakdown(
     print("\n" + "=" * 70)
     print("LAP1015 CUDA TIMING BREAKDOWN")
     print("=" * 70)
-    print(f"use_epsilon={use_epsilon}, use_pinned_memory={use_pinned_memory}, max_devices={max_devices}")
+    print(
+        f"use_epsilon={use_epsilon}, use_pinned_memory={use_pinned_memory}, max_devices={max_devices}"
+    )
 
     for size in sizes:
         matrix = get_full_square_matrix(size)
@@ -172,7 +174,9 @@ def parse_args() -> argparse.Namespace:
         help="Square matrix sizes to benchmark.",
     )
     parser.add_argument("--warmup", type=int, default=1, help="Warmup runs per size.")
-    parser.add_argument("--repeats", type=int, default=3, help="Timed repeats per size (median used).")
+    parser.add_argument(
+        "--repeats", type=int, default=3, help="Timed repeats per size (median used)."
+    )
     parser.add_argument(
         "--no-use-epsilon",
         dest="use_epsilon",

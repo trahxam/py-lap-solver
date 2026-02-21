@@ -44,7 +44,9 @@ def test_matrix_generators_emit_float32(generator, kwargs):
     assert matrix_batched.dtype == np.float32
 
 
-@pytest.mark.parametrize("solver_name,solver_instance", list(Solvers.get_available_solvers().items()))
+@pytest.mark.parametrize(
+    "solver_name,solver_instance", list(Solvers.get_available_solvers().items())
+)
 def test_solvers_match_float32_reference_single(solver_name, solver_instance):
     """Single solve should match scipy's float32 reference."""
     matrix = get_full_square_matrix(32)
@@ -62,7 +64,9 @@ def test_solvers_match_float32_reference_single(solver_name, solver_instance):
     ), f"{solver_name}: single float32 cost mismatch"
 
 
-@pytest.mark.parametrize("solver_name,solver_instance", list(Solvers.get_available_solvers().items()))
+@pytest.mark.parametrize(
+    "solver_name,solver_instance", list(Solvers.get_available_solvers().items())
+)
 def test_solvers_match_float32_reference_batch(solver_name, solver_instance):
     """Batch solve should match scipy's float32 reference."""
     batch = get_full_square_matrix(24, batch_size=4)

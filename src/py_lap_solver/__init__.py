@@ -3,7 +3,6 @@
 from . import solvers
 from .base import LapSolver
 
-
 try:
     from importlib.metadata import PackageNotFoundError, version
 except ImportError:

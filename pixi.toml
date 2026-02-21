@@ -21,6 +21,7 @@ black = "*"
 ruff = "*"
 python-build = "*"
 matplotlib = ">=3.7"
+pre-commit = "*"
 
 [target.linux-64.dependencies]
 # CUDA 13+ dropped support for older SM targets (e.g., sm_70). Pin to CUDA 12.x.

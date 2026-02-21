@@ -42,6 +42,7 @@ dev = [
     "black",
     "ruff",
     "matplotlib>=3.7",
+    "pre-commit",
     "cibuildwheel>=2.16.0",
     "build",
 ]

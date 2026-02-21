@@ -110,5 +110,8 @@ cython_debug/
 .env
 .envrc
 
+# Images
+*.sif
+
 # Pixi
 .pixi/

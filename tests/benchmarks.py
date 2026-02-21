@@ -62,7 +62,11 @@ def benchmark_single(matrix_sizes: List[int], warmup: int, repeats: int) -> Dict
         matrix = get_full_square_matrix(size)
         print(f"\nMatrix size: ({size}, {size})")
         for name, solver in solvers.items():
-            runtime_ms = _time_call(lambda: solver.solve_single(matrix), warmup=warmup, repeats=repeats)
+            runtime_ms = _time_call(
+                lambda s=solver, m=matrix: s.solve_single(m),
+                warmup=warmup,
+                repeats=repeats,
+            )
             results[name].append(runtime_ms)
             print(f"{name:25s}: {runtime_ms:9.3f} ms")
 
@@ -87,7 +91,7 @@ def benchmark_batched(
         print(f"\nMatrix size: ({size}, {size}), batch size: {batch_size}")
         for name, solver in solvers.items():
             runtime_ms = _time_call(
-                lambda: solver.batch_solve(matrices),
+                lambda s=solver, mats=matrices: s.batch_solve(mats),
                 warmup=warmup,
                 repeats=repeats,
             )
@@ -240,7 +244,9 @@ def main() -> None:
     Solvers.print_available_solvers()
 
     if args.mode in {"single", "all"}:
-        single_results = benchmark_single(args.single_sizes, warmup=args.warmup, repeats=args.repeats)
+        single_results = benchmark_single(
+            args.single_sizes, warmup=args.warmup, repeats=args.repeats
+        )
         single_csv = args.output_dir / "single_runtime_vs_size.csv"
         single_png = args.output_dir / "single_runtime_vs_size.png"
         write_csv(single_csv, args.single_sizes, single_results)
