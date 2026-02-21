@@ -85,29 +85,20 @@ class BatchedScipySolver(LapSolver):
                 "Please rebuild the package with C++ extensions enabled."
             )
 
+        # Batched scipy wrapper is float32-only: always coerce input to float32.
+        cost_matrix = np.asarray(cost_matrix, dtype=np.float32)
         # Convert single problem to batch of size 1
-        cost_matrix = np.asarray(cost_matrix)
         batch_cost = cost_matrix[np.newaxis, :, :]
 
         num_valid_arg = None if num_valid is None else num_valid
 
-        # Choose precision based on input dtype
-        if cost_matrix.dtype == np.float32:
-            result = self._backend.solve_batched_lap_float(
-                batch_cost,
-                maximize=self.maximize,
-                num_valid=num_valid_arg,
-                unassigned_value=self.unassigned_value,
-                use_openmp=self.use_openmp,
-            )
-        else:
-            result = self._backend.solve_batched_lap_double(
-                batch_cost,
-                maximize=self.maximize,
-                num_valid=num_valid_arg,
-                unassigned_value=self.unassigned_value,
-                use_openmp=self.use_openmp,
-            )
+        result = self._backend.solve_batched_lap_float(
+            batch_cost,
+            maximize=self.maximize,
+            num_valid=num_valid_arg,
+            unassigned_value=self.unassigned_value,
+            use_openmp=self.use_openmp,
+        )
 
         return result[0]
 
@@ -134,7 +125,8 @@ class BatchedScipySolver(LapSolver):
                 "Please rebuild the package with C++ extensions enabled."
             )
 
-        batch_cost_matrices = np.asarray(batch_cost_matrices)
+        # Batched scipy wrapper is float32-only: always coerce input to float32.
+        batch_cost_matrices = np.asarray(batch_cost_matrices, dtype=np.float32)
 
         if batch_cost_matrices.ndim != 3:
             raise ValueError("batch_cost_matrices must be 3D array (B, N, M)")
@@ -147,20 +139,10 @@ class BatchedScipySolver(LapSolver):
             else:
                 num_valid_arg = np.asarray(num_valid, dtype=np.int64)
 
-        # Choose precision based on input dtype
-        if batch_cost_matrices.dtype == np.float32:
-            return self._backend.solve_batched_lap_float(
-                batch_cost_matrices,
-                maximize=self.maximize,
-                num_valid=num_valid_arg,
-                unassigned_value=self.unassigned_value,
-                use_openmp=self.use_openmp,
-            )
-        else:
-            return self._backend.solve_batched_lap_double(
-                batch_cost_matrices,
-                maximize=self.maximize,
-                num_valid=num_valid_arg,
-                unassigned_value=self.unassigned_value,
-                use_openmp=self.use_openmp,
-            )
+        return self._backend.solve_batched_lap_float(
+            batch_cost_matrices,
+            maximize=self.maximize,
+            num_valid=num_valid_arg,
+            unassigned_value=self.unassigned_value,
+            use_openmp=self.use_openmp,
+        )

@@ -28,6 +28,8 @@ def solve_single(cost_matrix, unassigned_value, maximize, num_valid):
         Unassigned rows have value `unassigned_value`.
 
     """
+    # Keep Python/scipy path consistent with the C++ wrappers: float32 inputs only.
+    cost_matrix = np.asarray(cost_matrix, dtype=np.float32)
     n_rows = cost_matrix.shape[0]
 
     # Slice to valid region if needed (this creates a view, not a copy)
@@ -118,7 +120,8 @@ class ScipySolver(LapSolver):
             Array of shape (B, N) where element [b, i] gives the column assigned
             to row i in batch element b. Unassigned rows have value `unassigned_value`.
         """
-        batch_cost_matrices = np.asarray(batch_cost_matrices)
+        # Keep Python/scipy path consistent with the C++ wrappers: float32 inputs only.
+        batch_cost_matrices = np.asarray(batch_cost_matrices, dtype=np.float32)
         batch_size, n_rows, _ = batch_cost_matrices.shape
 
         # Handle num_valid as scalar or array
