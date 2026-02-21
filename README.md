@@ -8,6 +8,18 @@ A unified Python framework for Linear Assignment Problem (LAP) solvers.
 
 The Linear Assignment Problem seeks to find an optimal assignment between two sets given a cost matrix, minimizing (or maximizing) the total cost of the assignment.
 
+## Benchmark Plots
+
+Representative benchmark plots (generated under `benchmark_results/`):
+
+**Runtime vs Matrix Size**
+
+![Runtime vs Matrix Size](benchmark_results/single_runtime_vs_size.png)
+
+**Runtime vs Batch Size (Fixed Problem Size)**
+
+![Runtime vs Batch Size](benchmark_results/batch_runtime_vs_batch_size_n256.png)
+
 ## Installation
 
 Install from pypi
