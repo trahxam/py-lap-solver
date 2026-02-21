@@ -28,6 +28,34 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
+### Install with Pixi
+
+For a reproducible environment (Python, C/C++ toolchain, CMake, lint/test tools), use Pixi:
+
+```bash
+# Install/update the environment from pixi.toml.
+# This also installs py-lap-solver in editable mode.
+pixi install
+```
+
+On Linux, the Pixi config installs `cuda-nvcc` so CUDA bindings can be built.
+If you still get CPU-only builds, verify:
+
+```bash
+pixi run which nvcc
+pixi run nvcc --version
+```
+
+Useful Pixi tasks:
+
+```bash
+pixi run format
+pixi run lint
+pixi run lint-fix
+pixi run test
+pixi run build-wheel
+```
+
 ## Features
 
 - **Unified Interface**: Common API across all solver implementations
@@ -37,7 +65,8 @@ pip install -e ".[dev]"
   - **Lap1015Solver**: Highly optimized C++ implementation (shortest augmenting path algorithm)
 - **Batch Processing**: Solve multiple LAP instances efficiently with OpenMP parallelization
 - **Flexible Input**: Support for square and rectangular cost matrices
-- **Optional GPU Support**: CUDA support in LAP1015 (not yet fully exposed in Python bindings)
+- **Float32 Execution**: Cost matrices are coerced to `float32` in all solver wrappers
+- **Optional GPU Support**: CUDA-backed LAP1015 solver via optional `_lap1015_cuda` extension
 
 ## Quick Start
 
@@ -50,14 +79,14 @@ from py_lap_solver.solvers import Solvers
 import numpy as np
 
 # Create a batch of cost matrices
-batch_matrices = np.random.rand(100, 500, 500)
+batch_matrices = np.random.rand(100, 500, 500).astype(np.float32)
 
 # Use the fastest available solver with OpenMP parallelization
 # This will give you ~6x speedup over sequential processing
 assignments = Solvers.BatchedScipyOMP.batch_solve(batch_matrices)
 
 # For single problems, use the standard scipy solver
-cost_matrix = np.random.rand(500, 500)
+cost_matrix = np.random.rand(500, 500).astype(np.float32)
 single_assignment = Solvers.Scipy.solve_single(cost_matrix)
 ```
 
@@ -67,6 +96,7 @@ Available solvers in the registry:
 - `Solvers.BatchedScipySequential` - C++ scipy without parallelization
 - `Solvers.Lap1015OMP` - LAP1015 algorithm with OpenMP (limited benefit)
 - `Solvers.Lap1015Sequential` - LAP1015 algorithm without OpenMP
+- `Solvers.Lap1015CUDA` - LAP1015 CUDA backend (only when CUDA extension is built)
 
 ### Manual Configuration
 
@@ -88,7 +118,7 @@ if BatchedScipySolver.is_available():
     # Create solver without OpenMP for comparison
     batch_solver_seq = BatchedScipySolver(use_openmp=False)
 
-    batch_matrices = np.random.rand(10, 100, 100)
+    batch_matrices = np.random.rand(10, 100, 100).astype(np.float32)
     fast_assignments = batch_solver_omp.batch_solve(batch_matrices)  # ~6x faster
     slow_assignments = batch_solver_seq.batch_solve(batch_matrices)
 
@@ -97,7 +127,15 @@ if Lap1015Solver.is_available():
     # Note: OpenMP provides minimal benefit for LAP1015 due to algorithm structure
     lap_solver = Lap1015Solver(use_openmp=False)
     assignments = lap_solver.solve_single(cost_matrix)
+
+# Use LAP1015 CUDA solver
+if Lap1015Solver.has_cuda():
+    lap_cuda_solver = Lap1015Solver(use_cuda=True, use_openmp=False)
+    assignments_cuda = lap_cuda_solver.solve_single(cost_matrix)
 ```
+
+`Lap1015CUDA` preloads the cost matrix to GPU memory before solving, so it does not
+stream rows from host memory during the solve loop.
 
 ### Return Format
 
@@ -110,7 +148,7 @@ All solvers return assignments in a consistent format:
 import numpy as np
 from py_lap_solver.solvers import Solvers
 
-cost_matrix = np.array([[1, 2], [3, 4]])
+cost_matrix = np.array([[1, 2], [3, 4]], dtype=np.float32)
 assignments = Solvers.Scipy.solve_single(cost_matrix)
 # assignments = [1, 0]  (row 0 -> col 1, row 1 -> col 0)
 ```
@@ -130,6 +168,55 @@ pip install -e . --no-build-isolation
 brew install libomp
 ```
 
+With Pixi, those build dependencies are managed by `pixi.toml`, so usually:
+
+```bash
+pixi install
+```
+
+After changing C++ binding/build files, you can force a rebuild/reinstall with:
+
+```bash
+pixi run install
+```
+
+If CUDA Toolkit (with `nvcc`) is available at build time, the optional
+`py_lap_solver._lap1015_cuda` module is built automatically. You can then use:
+
+```python
+from py_lap_solver.solvers import Lap1015Solver
+
+solver = Lap1015Solver(use_cuda=True, cuda_max_devices=1)
+result = solver.solve_single(cost_matrix)
+```
+
+Check CUDA backend availability after install:
+
+```bash
+pixi run python -c "from py_lap_solver.solvers import Lap1015Solver; print(Lap1015Solver.has_cuda(), Lap1015Solver.cuda_device_count())"
+```
+
+If CMake still reports "Looking for a CUDA compiler - NOTFOUND", force the compiler path:
+
+```bash
+CUDACXX="$(pixi run which nvcc)" pixi run install
+```
+
+If CUDA configure fails with `Unsupported gpu architecture 'compute_50'`, force modern arch detection:
+
+```bash
+CMAKE_ARGS="-DCMAKE_CUDA_ARCHITECTURES=native" pixi run install
+```
+
+If build fails with `Unsupported gpu architecture 'compute_70'`, your toolkit is too new
+for that GPU architecture (common with CUDA 13+). Use CUDA 12.x in Pixi and reinstall:
+
+```bash
+pixi install
+pixi run nvcc --version
+pixi run install
+```
+
 ### OpenMP Runtime Control
 
 All C++ solvers support runtime OpenMP control through the `use_openmp` parameter:
@@ -144,7 +231,7 @@ solver_parallel = BatchedScipySolver(use_openmp=True)
 # Create solver without OpenMP
 solver_sequential = BatchedScipySolver(use_openmp=False)
 
-batch = np.random.rand(100, 500, 500)
+batch = np.random.rand(100, 500, 500).astype(np.float32)
 
 # Parallel: ~126ms for 100 matrices
 assignments_fast = solver_parallel.batch_solve(batch)
@@ -164,11 +251,11 @@ from py_lap_solver.solvers import Solvers
 import numpy as np
 
 # Pattern 1: Batch processing (FAST - use OpenMP)
-batch_matrices = np.random.rand(1000, 100, 100)
+batch_matrices = np.random.rand(1000, 100, 100).astype(np.float32)
 assignments = Solvers.BatchedScipyOMP.batch_solve(batch_matrices)
 
 # Pattern 2: Single large problem (no parallelization benefit)
-single_matrix = np.random.rand(5000, 5000)
+single_matrix = np.random.rand(5000, 5000).astype(np.float32)
 assignment = Solvers.Scipy.solve_single(single_matrix)  # or BatchedScipySequential
 
 # Pattern 3: Many small problems in a loop
@@ -189,6 +276,9 @@ results = Solvers.BatchedScipyOMP.batch_solve(all_matrices)  # 6x faster!
 ```bash
 # Install with development dependencies (includes black, ruff, pytest)
 pip install -e ".[dev]"
+
+# Or with Pixi-managed environment and toolchain
+pixi install
 ```
 
 ### Code Formatting and Linting
@@ -199,17 +289,32 @@ The project uses `black` for code formatting and `ruff` for linting. A Makefile 
 # Format code with black
 make format
 
+# Or with Pixi
+pixi run format
+
 # Lint code with ruff
 make lint
+
+# Or with Pixi
+pixi run lint
 
 # Auto-fix linting issues
 make lint-fix
 
+# Or with Pixi
+pixi run lint-fix
+
 # Run all checks
 make check
 
+# Or with Pixi
+pixi run check
+
 # Format, lint-fix, check, and test in one command
 make all
+
+# Or with Pixi
+pixi run all
 ```
 
 Or use the tools directly:
@@ -231,8 +336,44 @@ ruff check --fix src/ tests/
 # Run tests with pytest
 pytest tests/
 
+# Or with Pixi
+pixi run test
+
 # Or use make
 make test
+```
+
+### Benchmarking
+
+Benchmarks are split into single-problem and batched-problem modes.
+Both modes generate runtime-vs-matrix-size graphs (`.png`) and raw data (`.csv`)
+under `benchmark_results/`.
+
+```bash
+# Single-problem benchmarks (includes CUDA solver if available)
+pixi run benchmark-single
+
+# Batched benchmarks (non-CUDA solvers only)
+pixi run benchmark-batch
+
+# Run both
+pixi run benchmark-all
+
+# CUDA-only timing breakdown (transfer vs solve)
+pixi run benchmark-cuda-breakdown
+
+# Batch-size scaling at fixed problem size (default N=256, batch=1..1024 powers of two)
+pixi run benchmark-batch-scaling
+```
+
+Direct script usage:
+
+```bash
+python tests/benchmarks.py --mode single
+python tests/benchmarks.py --mode batch --batch-size 32
+python tests/benchmarks.py --mode all
+python tests/benchmark_lap1015_cuda_breakdown.py
+python tests/benchmark_batched_batch_size_scaling.py
 ```
 
 ## License

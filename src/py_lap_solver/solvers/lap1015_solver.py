@@ -29,6 +29,21 @@ class Lap1015Solver(LapSolver):
     use_lambda : bool, optional
         Whether to use lambda-based cost function (SimpleCostFunction wrapper).
         May be faster due to lambda inlining. Default is False.
+    use_cuda : bool, optional
+        Whether to use the CUDA backend. Requires the optional _lap1015_cuda
+        extension to be built. Default is False.
+    cuda_max_devices : int, optional
+        Maximum number of CUDA devices to use when CUDA backend is enabled.
+        Default is 1.
+    cuda_devices : list[int] or None, optional
+        Explicit CUDA device IDs to use. If None, devices are auto-selected.
+        Default is None.
+    cuda_use_pinned_memory : bool, optional
+        Whether to use pinned host memory for CUDA table storage.
+        Default is True.
+    cuda_silent : bool, optional
+        If True, suppress CUDA device enumeration logs from LAP1015.
+        Default is True.
     """
 
     def __init__(
@@ -38,6 +53,11 @@ class Lap1015Solver(LapSolver):
         use_openmp=True,
         use_epsilon=True,
         use_lambda=False,
+        use_cuda=False,
+        cuda_max_devices=1,
+        cuda_devices=None,
+        cuda_use_pinned_memory=True,
+        cuda_silent=True,
         **kwargs,
     ):
         super().__init__()
@@ -46,16 +66,33 @@ class Lap1015Solver(LapSolver):
         self.use_openmp = use_openmp
         self.use_epsilon = use_epsilon
         self.use_lambda = use_lambda
+        self.use_cuda = use_cuda
+        self.cuda_max_devices = cuda_max_devices
+        self.cuda_devices = list(cuda_devices) if cuda_devices is not None else []
+        self.cuda_use_pinned_memory = cuda_use_pinned_memory
+        self.cuda_silent = cuda_silent
 
-        # Try to import the C++ extension
+        # Try to import the CPU C++ extension
         try:
             from py_lap_solver import _lap1015
 
             self._backend = _lap1015
-            self._available = True
         except ImportError:
             self._backend = None
-            self._available = False
+
+        # Try to import the optional CUDA extension
+        try:
+            from py_lap_solver import _lap1015_cuda
+
+            self._cuda_backend = _lap1015_cuda
+        except ImportError:
+            self._cuda_backend = None
+
+        self._cpu_available = self._backend is not None
+        self._cuda_available = bool(
+            self._cuda_backend is not None and getattr(self._cuda_backend, "HAS_CUDA", False)
+        )
+        self._available = self._cpu_available or self._cuda_available
 
     @staticmethod
     def is_available():
@@ -65,7 +102,12 @@ class Lap1015Solver(LapSolver):
 
             return True
         except ImportError:
-            return False
+            try:
+                from py_lap_solver import _lap1015_cuda  # noqa: F401
+
+                return True
+            except ImportError:
+                return False
 
     @staticmethod
     def has_openmp():
@@ -81,11 +123,28 @@ class Lap1015Solver(LapSolver):
     def has_cuda():
         """Check if CUDA support is available."""
         try:
+            from py_lap_solver import _lap1015_cuda
+
+            return _lap1015_cuda.HAS_CUDA
+        except ImportError:
+            pass
+
+        try:
             from py_lap_solver import _lap1015
 
             return _lap1015.HAS_CUDA
         except ImportError:
             return False
+
+    @staticmethod
+    def cuda_device_count():
+        """Get number of visible CUDA devices for the LAP1015 CUDA backend."""
+        try:
+            from py_lap_solver import _lap1015_cuda
+
+            return int(_lap1015_cuda.get_cuda_device_count())
+        except ImportError:
+            return 0
 
     def solve_single(self, cost_matrix, num_valid=None):
         """Solve a single linear assignment problem.
@@ -110,7 +169,8 @@ class Lap1015Solver(LapSolver):
                 "Please rebuild the package with C++ extensions enabled."
             )
 
-        cost_matrix = np.asarray(cost_matrix)
+        # LAP1015 wrappers are float32-only: always coerce input to float32.
+        cost_matrix = np.asarray(cost_matrix, dtype=np.float32)
         n_rows, n_cols = cost_matrix.shape
 
         # Transpose if more rows than columns (bindings expect rows <= cols)
@@ -126,11 +186,32 @@ class Lap1015Solver(LapSolver):
         # Pass num_valid to C++ if provided, otherwise -1 to use full matrix
         num_valid_arg = num_valid if num_valid is not None else -1
 
-        # Determine whether to use OpenMP (only if available)
-        use_openmp_arg = self.use_openmp and self._backend.HAS_OPENMP
+        if self.use_cuda:
+            if not self._cuda_available:
+                raise RuntimeError(
+                    "LAP1015 CUDA backend is not available. "
+                    "Please rebuild the package with CUDA-enabled C++ extensions."
+                )
 
-        # Choose precision based on input dtype
-        if cost_matrix.dtype == np.float32:
+            result = self._cuda_backend.solve_lap_cuda_float(
+                cost_matrix,
+                num_valid=num_valid_arg,
+                use_epsilon=self.use_epsilon,
+                use_pinned_memory=self.cuda_use_pinned_memory,
+                max_devices=self.cuda_max_devices,
+                devices=self.cuda_devices,
+                silent=self.cuda_silent,
+            )
+        else:
+            if not self._cpu_available:
+                raise RuntimeError(
+                    "LAP1015 CPU backend is not available. "
+                    "Install/rebuild the package with C++ extensions enabled."
+                )
+
+            # Determine whether to use OpenMP (only if available)
+            use_openmp_arg = self.use_openmp and self._backend.HAS_OPENMP
+
             if self.use_lambda:
                 result = self._backend.solve_lap_lambda_float(
                     cost_matrix,
@@ -140,24 +221,6 @@ class Lap1015Solver(LapSolver):
                 )
             else:
                 result = self._backend.solve_lap_float(
-                    cost_matrix,
-                    num_valid=num_valid_arg,
-                    use_openmp=use_openmp_arg,
-                    use_epsilon=self.use_epsilon,
-                )
-        else:
-            # Convert to float64 if necessary
-            if cost_matrix.dtype != np.float64:
-                cost_matrix = cost_matrix.astype(np.float64)
-            if self.use_lambda:
-                result = self._backend.solve_lap_lambda_double(
-                    cost_matrix,
-                    num_valid=num_valid_arg,
-                    use_openmp=use_openmp_arg,
-                    use_epsilon=self.use_epsilon,
-                )
-            else:
-                result = self._backend.solve_lap_double(
                     cost_matrix,
                     num_valid=num_valid_arg,
                     use_openmp=use_openmp_arg,
@@ -206,7 +269,8 @@ class Lap1015Solver(LapSolver):
                 "Please rebuild the package with C++ extensions enabled."
             )
 
-        batch_cost_matrices = np.asarray(batch_cost_matrices)
+        # LAP1015 wrappers are float32-only: always coerce input to float32.
+        batch_cost_matrices = np.asarray(batch_cost_matrices, dtype=np.float32)
 
         if batch_cost_matrices.ndim != 3:
             raise ValueError("batch_cost_matrices must be 3D array (B, N, M)")

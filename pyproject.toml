@@ -41,6 +41,7 @@ dev = [
     "pytest>=7.0",
     "black",
     "ruff",
+    "matplotlib>=3.7",
     "cibuildwheel>=2.16.0",
     "build",
 ]
@@ -63,6 +64,8 @@ CMAKE_BUILD_TYPE = "Release"
 # Use generic flags for portability, users can override for specific architectures
 CMAKE_C_FLAGS_RELEASE = "-O3 -fPIC"
 CMAKE_CXX_FLAGS_RELEASE = "-O3 -fPIC"
+# Avoid legacy auto-arch probes (e.g., compute_50) that fail with CUDA 13+
+CMAKE_CUDA_ARCHITECTURES = "native"
 
 [tool.black]
 line-length = 100

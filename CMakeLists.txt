@@ -90,17 +90,69 @@ target_compile_definitions(_lap1015 PRIVATE LAP_QUIET)  # Suppress debug output
 install(TARGETS _batched_scipy_lap _lap1015 LIBRARY DESTINATION py_lap_solver)
 
 # ============================================================================
-# CUDA support (commented out - uncomment to enable when needed)
+# CUDA support for LAP1015 Python bindings (optional)
 # ============================================================================
-# include(CheckLanguage)
-# check_language(CUDA)
-# if(CMAKE_CUDA_COMPILER)
-#     enable_language(CUDA)
-#     if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-#         set(CMAKE_CUDA_ARCHITECTURES auto)
-#     endif()
-#     target_compile_definitions(_lap1015 PRIVATE LAP_CUDA)
-#     message(STATUS "LAP1015 solver: CUDA support enabled")
-# else()
-#     message(STATUS "LAP1015 solver: CUDA not found - GPU support disabled")
-# endif()
+include(CheckLanguage)
+
+# Help CMake find nvcc inside Pixi/Conda environments where PATH probing can fail.
+if(NOT DEFINED CMAKE_CUDA_COMPILER)
+    find_program(PY_LAP_NVCC nvcc
+        HINTS
+            "$ENV{CONDA_PREFIX}/bin"
+            "$ENV{MAMBA_ROOT_PREFIX}/envs/default/bin"
+            "$ENV{PIXI_PROJECT_ROOT}/.pixi/envs/default/bin"
+    )
+    if(PY_LAP_NVCC)
+        set(CMAKE_CUDA_COMPILER "${PY_LAP_NVCC}" CACHE FILEPATH "CUDA compiler" FORCE)
+        message(STATUS "LAP1015 CUDA solver: using nvcc at ${CMAKE_CUDA_COMPILER}")
+    endif()
+endif()
+
+check_language(CUDA)
+if(CMAKE_CUDA_COMPILER)
+    # Set architectures before enabling CUDA language; otherwise CMake's compiler
+    # probe may inject legacy SM targets (e.g., compute_50) unsupported by CUDA 13+.
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES OR CMAKE_CUDA_ARCHITECTURES STREQUAL "")
+        set(CMAKE_CUDA_ARCHITECTURES "native" CACHE STRING "CUDA architectures" FORCE)
+    endif()
+
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+
+    pybind11_add_module(_lap1015_cuda
+        src/cpp/bindings/lap1015_cuda_bindings.cu
+    )
+
+    target_compile_definitions(_lap1015_cuda PRIVATE LAP_CUDA LAP_QUIET)
+    target_link_libraries(_lap1015_cuda PRIVATE CUDA::cudart)
+    set_target_properties(_lap1015_cuda PROPERTIES
+        CUDA_STANDARD 17
+        CUDA_STANDARD_REQUIRED ON
+        CUDA_SEPARABLE_COMPILATION ON
+    )
+
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        target_compile_options(_lap1015_cuda PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-O3 -fstrict-aliasing ${ARCH_FLAGS}>
+            $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda -O3>
+        )
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        target_compile_options(_lap1015_cuda PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:/O2>
+            $<$<COMPILE_LANGUAGE:CUDA>:-O3>
+        )
+    endif()
+
+    if (OpenMP_CXX_FOUND)
+        target_link_libraries(_lap1015_cuda PRIVATE OpenMP::OpenMP_CXX)
+        target_compile_definitions(_lap1015_cuda PRIVATE LAP_OPENMP LAP_CUDA_OPENMP)
+        message(STATUS "LAP1015 CUDA solver: OpenMP support enabled")
+    else()
+        message(STATUS "LAP1015 CUDA solver: OpenMP not found - multi-GPU parallel support disabled")
+    endif()
+
+    install(TARGETS _lap1015_cuda LIBRARY DESTINATION py_lap_solver)
+    message(STATUS "LAP1015 CUDA solver: CUDA support enabled")
+else()
+    message(STATUS "LAP1015 CUDA solver: CUDA not found - GPU support disabled")
+endif()

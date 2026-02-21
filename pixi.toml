@@ -1,0 +1,51 @@
+[project]
+name = "py-lap-solver"
+version = "0.1.4"
+description = "Unified Python framework for Linear Assignment Problem solvers"
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64"]
+
+[dependencies]
+python = ">=3.8,<3.13"
+pip = ">=23"
+numpy = ">=1.20"
+scipy = ">=1.7"
+scikit-build-core = ">=0.3.3"
+pybind11 = ">=2.10"
+cmake = ">=3.24"
+ninja = ">=1.11"
+compilers = "*"
+make = "*"
+pytest = ">=7"
+black = "*"
+ruff = "*"
+python-build = "*"
+matplotlib = ">=3.7"
+
+[target.linux-64.dependencies]
+# CUDA 13+ dropped support for older SM targets (e.g., sm_70). Pin to CUDA 12.x.
+cuda-nvcc = "12.*"
+
+[target.linux-aarch64.dependencies]
+# CUDA 13+ dropped support for older SM targets (e.g., sm_70). Pin to CUDA 12.x.
+cuda-nvcc = "12.*"
+
+[pypi-dependencies]
+py-lap-solver = { path = ".", editable = true }
+
+[tasks]
+install = "pip install -e . --no-build-isolation --no-deps"
+install-dev = "pip install -e '.[dev]' --no-build-isolation --no-deps"
+install-release = "pip install . --no-build-isolation --no-deps"
+build-wheel = "python -m build"
+format = "black src/ tests/"
+lint = "ruff check src/ tests/"
+lint-fix = "ruff check --fix src/ tests/"
+check = { depends-on = ["lint"] }
+test = "pytest tests/"
+benchmark-single = "python tests/benchmarks.py --mode single"
+benchmark-batch = "python tests/benchmarks.py --mode batch"
+benchmark-all = "python tests/benchmarks.py --mode all"
+benchmark-cuda-breakdown = "python tests/benchmark_lap1015_cuda_breakdown.py"
+benchmark-batch-scaling = "python tests/benchmark_batched_batch_size_scaling.py"
+all = { depends-on = ["format", "lint-fix", "check", "test"] }

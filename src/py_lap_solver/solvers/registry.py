@@ -34,6 +34,11 @@ class SolverRegistry:
 
         # LAP1015 solvers (with and without OpenMP, with and without epsilon, with and without lambda)
         if Lap1015Solver.is_available():
+            self.Lap1015CUDA = (
+                Lap1015Solver(use_cuda=True, use_openmp=False, use_epsilon=True)
+                if Lap1015Solver.has_cuda()
+                else None
+            )
             # self.Lap1015OMP = Lap1015Solver(use_openmp=True, use_epsilon=True)
             self.Lap1015OMP = None
             self.Lap1015Sequential = Lap1015Solver(use_openmp=False, use_epsilon=True)
@@ -54,6 +59,7 @@ class SolverRegistry:
             )
             self.Lap1015 = self.Lap1015Sequential  # Default alias
         else:
+            self.Lap1015CUDA = None
             self.Lap1015OMP = None
             self.Lap1015Sequential = None
             self.Lap1015OMPNoEps = None
@@ -118,6 +124,11 @@ class SolverRegistry:
                 "has_openmp": Lap1015Solver.has_openmp(),
                 "has_cuda": Lap1015Solver.has_cuda(),
                 "features": self._get_lap1015_features(),
+            },
+            "Lap1015CUDA": {
+                "available": Lap1015Solver.has_cuda(),
+                "has_cuda": Lap1015Solver.has_cuda(),
+                "features": ["cpp", "optimized", "cuda", "gpu"],
             },
             "Lap1015Sequential": {
                 "available": Lap1015Solver.is_available(),
